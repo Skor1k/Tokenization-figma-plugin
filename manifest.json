@@ -1,6 +1,6 @@
 {
-  "name": "DL Atoms Tokenization",
-  "id": "dl-atoms-tokenization",
+  "name": "DL Atoms Tokenization i3",
+  "id": "dl-atoms-tokenization-i3",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
