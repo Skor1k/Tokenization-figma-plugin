@@ -854,11 +854,6 @@ function applyStrokeVariable(node, colorVariable) {
 
 // Рекурсивное применение цветов
 async function applyColorsRecursively(node, colorVars) {
-    // Пропускаем инстансы кроме иконок
-    if (node.type === 'INSTANCE' && !isIconInstance(node)) {
-        return;
-    }
-    
     // Иконки - определяем тип и применяем соответствующий цвет
     if (isIconInstance(node)) {
         // Пропускаем UI-контролы которые не нужно перекрашивать
