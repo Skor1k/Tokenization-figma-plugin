@@ -269,6 +269,7 @@ const COLOR_KEYS = {
 let variablesCache = {};
 let textStylesCache = {};
 let colorVariablesCache = {};
+let variableIdToName = {}; // Маппинг id переменной → имя (для работы с dynamic-page)
 let cacheLoaded = false;
 
 // Предзагрузка всех переменных и стилей
@@ -279,7 +280,10 @@ async function preloadCache() {
     const varPromises = Object.entries(VARIABLE_KEYS).map(async ([name, key]) => {
         try {
             const variable = await figma.variables.importVariableByKeyAsync(key);
-            if (variable) variablesCache[name] = variable;
+            if (variable) {
+                variablesCache[name] = variable;
+                variableIdToName[variable.id] = variable.name;
+            }
         } catch (e) {}
     });
     
@@ -317,7 +321,10 @@ async function loadColorVariables(skinName) {
         if (key) {
             try {
                 const variable = await figma.variables.importVariableByKeyAsync(key);
-                if (variable) result[prop] = variable;
+                if (variable) {
+                    result[prop] = variable;
+                    variableIdToName[variable.id] = variable.name;
+                }
             } catch (e) {}
         }
     });
@@ -987,15 +994,12 @@ function getIconFillInfo(iconNode) {
             if (solidFill) {
                 let boundVariableName = null;
                 
-                // Проверяем привязанную переменную
+                // Проверяем привязанную переменную (используем кэш для dynamic-page)
                 try {
                     if (solidFill.boundVariables && solidFill.boundVariables.color) {
                         const varId = solidFill.boundVariables.color.id;
-                        if (varId) {
-                            const variable = figma.variables.getVariableById(varId);
-                            if (variable) {
-                                boundVariableName = variable.name;
-                            }
+                        if (varId && variableIdToName[varId]) {
+                            boundVariableName = variableIdToName[varId];
                         }
                     }
                 } catch (e) {}

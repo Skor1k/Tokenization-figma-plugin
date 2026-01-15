@@ -1,6 +1,6 @@
 {
   "name": "DL Atoms Tokenization i3",
-  "id": "dl-atoms-tokenization-i3",
+  "id": "1593589660672302298",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
@@ -13,6 +13,7 @@
     "allowedDomains": [
       "none"
     ]
-  }
+  },
+  "documentAccess": "dynamic-page"
 }
 
