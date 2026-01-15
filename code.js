@@ -955,7 +955,7 @@ async function getTextType(textNode) {
 async function getIconType(iconNode) {
     try {
         const fillInfo = await getIconFillInfo(iconNode);
-        if (!fillInfo) return 'main'; // fallback — если нет заливки, считаем main
+        if (!fillInfo) return null;
         
         // Проверка по токену
         if (fillInfo.boundVariableName) {
@@ -976,27 +976,10 @@ async function getIconType(iconNode) {
             }
         }
         
-        // Fallback по RGB — если нет токена и стиля, проверяем цвет
-        if (fillInfo.color) {
-            const r = fillInfo.color.r;
-            const g = fillInfo.color.g;
-            const b = fillInfo.color.b;
-            
-            // Черный (~0,0,0) → main
-            if (r < 0.2 && g < 0.2 && b < 0.2) {
-                return 'main';
-            }
-            
-            // Серый (~0.4-0.6) → supplementary
-            if (r > 0.3 && r < 0.7 && g > 0.3 && g < 0.7 && b > 0.3 && b < 0.7) {
-                return 'supplementary';
-            }
-        }
-        
-        // Fallback — если ничего не подошло, считаем main
-        return 'main';
+        // Нет токена и нет стиля — не перекрашиваем (цветная иконка)
+        return null;
     } catch (e) {}
-    return 'main';
+    return null;
 }
 
 // Получить информацию о заливке иконки (асинхронная версия для dynamic-page)
