@@ -956,14 +956,14 @@ function getIconType(iconNode) {
         // Приоритет 1: проверка по привязанной переменной (токену)
         if (fillInfo.boundVariableName) {
             const varName = fillInfo.boundVariableName.toLowerCase();
-            // Любой токен с icon-main или icon-supplementary перекрашиваем
-            if (varName.includes('icon-main')) {
+            // Только icon-gray-main и icon-gray-supplementary перекрашиваем
+            if (varName.includes('icon-gray-main')) {
                 return 'main';
             }
-            if (varName.includes('icon-supplementary')) {
+            if (varName.includes('icon-gray-supplementary')) {
                 return 'supplementary';
             }
-            // Токен без icon-main/icon-supplementary - не перекрашиваем
+            // Другой токен - не перекрашиваем
             return null;
         }
         
@@ -972,14 +972,14 @@ function getIconType(iconNode) {
             const style = figma.getStyleById(fillInfo.styleId);
             if (style && style.name) {
                 const styleName = style.name.toLowerCase();
-                // Любой стиль с icon-main или icon-supplementary перекрашиваем
-                if (styleName.includes('icon-main')) {
+                // Только icon-gray-main и icon-gray-supplementary перекрашиваем
+                if (styleName.includes('icon-gray-main')) {
                     return 'main';
                 }
-                if (styleName.includes('icon-supplementary')) {
+                if (styleName.includes('icon-gray-supplementary')) {
                     return 'supplementary';
                 }
-                // Стиль без icon-main/icon-supplementary - не перекрашиваем
+                // Другой стиль - не перекрашиваем
                 return null;
             }
         }
