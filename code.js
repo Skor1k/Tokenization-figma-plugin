@@ -549,14 +549,10 @@ function isHelpIcon(node) {
     if (!isIconInstance(node)) return false;
     
     try {
-        const mainComponent = node.mainComponent;
-        const componentName = (mainComponent && mainComponent.name) ? mainComponent.name.toLowerCase() : '';
+        // Проверяем только имя ноды (mainComponent может не работать с dynamic-page)
         const nodeName = (node.name || '').toLowerCase();
         
-        return componentName.includes('help') || 
-               componentName.includes('question') ||
-               nodeName.includes('help') ||
-               nodeName.includes('question');
+        return nodeName.includes('help') || nodeName.includes('question');
     } catch (e) {
         return false;
     }
@@ -677,14 +673,14 @@ function applyIconSizeToken(node) {
     } catch (e) {}
 }
 
-// Применение текстового стиля
+// Применение текстового стиля (асинхронная версия для dynamic-page)
 async function applyTextStyle(textNode, styleName) {
     const style = getTextStyle(styleName);
     if (!style) return false;
     
     try {
         await figma.loadFontAsync(style.fontName);
-        textNode.textStyleId = style.id;
+        await textNode.setTextStyleIdAsync(style.id);
         return true;
     } catch (e) {
         return false;
@@ -699,9 +695,6 @@ function isIconInstance(node) {
     if (node.type !== 'INSTANCE') return false;
     
     try {
-        const mainComponent = node.mainComponent;
-        if (!mainComponent || !mainComponent.remote) return false;
-        
         // Критерий 1: квадратные размеры из набора 12, 16, 20, 24
         const iconSizes = [12, 16, 20, 24];
         const width = Math.round(node.width);
@@ -879,7 +872,7 @@ async function applyColorsRecursively(node, colorVars) {
             return;
         }
         
-        const iconType = getIconType(node);
+        const iconType = await getIconType(node);
         // Пропускаем иконки без -main/-supplementary (цветные)
         if (iconType === null) {
             return;
@@ -894,7 +887,7 @@ async function applyColorsRecursively(node, colorVars) {
     
     // Текстовые элементы - определяем стиль и применяем цвет
     if (node.type === 'TEXT') {
-        const textType = getTextType(node);
+        const textType = await getTextType(node);
         const colorVar = textType === 'main' ? colorVars['text-main'] : colorVars['text-supplementary'];
         if (colorVar) {
             applyFillVariable(node, colorVar);
@@ -919,13 +912,11 @@ function isExcludedFromRecolor(node) {
     ];
     
     try {
-        const mainComponent = node.mainComponent;
-        const componentName = (mainComponent && mainComponent.name) ? mainComponent.name.toLowerCase() : '';
+        // Проверяем только имя ноды (mainComponent может не работать с dynamic-page)
         const nodeName = (node.name || '').toLowerCase();
         
-        // Проверяем имя компонента или ноды
         for (const excluded of excludedNames) {
-            if (componentName.includes(excluded) || nodeName.includes(excluded)) {
+            if (nodeName.includes(excluded)) {
                 return true;
             }
         }
@@ -935,14 +926,14 @@ function isExcludedFromRecolor(node) {
 }
 
 // Определяем тип текста (main или supplementary) по стилю
-function getTextType(textNode) {
+async function getTextType(textNode) {
     try {
         const styleId = textNode.textStyleId;
         if (styleId && typeof styleId === 'string') {
-            // Используем кэш для dynamic-page совместимости
-            const styleName = styleIdToName[styleId];
-            if (styleName) {
-                const styleNameLower = styleName.toLowerCase();
+            // Используем асинхронный API для dynamic-page совместимости
+            const style = await figma.getStyleByIdAsync(styleId);
+            if (style && style.name) {
+                const styleNameLower = style.name.toLowerCase();
                 // main-normal, main-header → main
                 if (styleNameLower.includes('main')) {
                     return 'main';
@@ -961,10 +952,10 @@ function getTextType(textNode) {
 
 // Определяем тип иконки (main или supplementary) по токену или стилю
 // Возвращает null если нет -main/-supplementary — такие иконки не перекрашиваем
-function getIconType(iconNode) {
+async function getIconType(iconNode) {
     try {
-        const fillInfo = getIconFillInfo(iconNode);
-        if (!fillInfo) return null;
+        const fillInfo = await getIconFillInfo(iconNode);
+        if (!fillInfo) return 'main'; // fallback — если нет заливки, считаем main
         
         // Проверка по токену
         if (fillInfo.boundVariableName) {
@@ -974,39 +965,59 @@ function getIconType(iconNode) {
             return null; // нет -main/-supplementary — не перекрашиваем
         }
         
-        // Проверка по стилю (используем кэш для dynamic-page совместимости)
+        // Проверка по стилю (используем асинхронный API для dynamic-page)
         if (fillInfo.styleId) {
-            const styleName = styleIdToName[fillInfo.styleId];
-            if (styleName) {
-                const styleNameLower = styleName.toLowerCase();
+            const style = await figma.getStyleByIdAsync(fillInfo.styleId);
+            if (style && style.name) {
+                const styleNameLower = style.name.toLowerCase();
                 if (styleNameLower.includes('-main')) return 'main';
                 if (styleNameLower.includes('-supplementary')) return 'supplementary';
                 return null;
             }
         }
         
-        // Нет токена и нет стиля — не перекрашиваем
-        return null;
+        // Fallback по RGB — если нет токена и стиля, проверяем цвет
+        if (fillInfo.color) {
+            const r = fillInfo.color.r;
+            const g = fillInfo.color.g;
+            const b = fillInfo.color.b;
+            
+            // Черный (~0,0,0) → main
+            if (r < 0.2 && g < 0.2 && b < 0.2) {
+                return 'main';
+            }
+            
+            // Серый (~0.4-0.6) → supplementary
+            if (r > 0.3 && r < 0.7 && g > 0.3 && g < 0.7 && b > 0.3 && b < 0.7) {
+                return 'supplementary';
+            }
+        }
+        
+        // Fallback — если ничего не подошло, считаем main
+        return 'main';
     } catch (e) {}
-    return null;
+    return 'main';
 }
 
-// Получить информацию о заливке иконки
-function getIconFillInfo(iconNode) {
+// Получить информацию о заливке иконки (асинхронная версия для dynamic-page)
+async function getIconFillInfo(iconNode) {
     // Ищем первый элемент с заливкой внутри иконки
-    function searchFill(node) {
+    async function searchFill(node) {
         // Проверяем сам узел
         if (node.fills && Array.isArray(node.fills) && node.fills.length > 0) {
             const solidFill = node.fills.find(f => f.type === 'SOLID' && f.visible !== false);
             if (solidFill) {
                 let boundVariableName = null;
                 
-                // Проверяем привязанную переменную (используем кэш для dynamic-page)
+                // Проверяем привязанную переменную (асинхронный API для dynamic-page)
                 try {
                     if (solidFill.boundVariables && solidFill.boundVariables.color) {
                         const varId = solidFill.boundVariables.color.id;
-                        if (varId && variableIdToName[varId]) {
-                            boundVariableName = variableIdToName[varId];
+                        if (varId) {
+                            const variable = await figma.variables.getVariableByIdAsync(varId);
+                            if (variable) {
+                                boundVariableName = variable.name;
+                            }
                         }
                     }
                 } catch (e) {}
@@ -1022,7 +1033,7 @@ function getIconFillInfo(iconNode) {
         // Ищем в детях
         if ('children' in node) {
             for (const child of node.children) {
-                const result = searchFill(child);
+                const result = await searchFill(child);
                 if (result) return result;
             }
         }
@@ -1030,7 +1041,7 @@ function getIconFillInfo(iconNode) {
         return null;
     }
     
-    return searchFill(iconNode);
+    return await searchFill(iconNode);
 }
 
 // Применить цвет к иконке (ко всем элементам с заливкой внутри)
