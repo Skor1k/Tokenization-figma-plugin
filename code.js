@@ -252,7 +252,15 @@ const COLOR_KEYS = {
     "message-lc/message-lc-text-main": "743189f0e21c14d977ae0f169c1363e5fbcaf653",
     "message-lc/message-lc-text-supplementary": "93dbf313e4ca597036f601288a7646d9f9809d82",
     "message-lc/message-lc-icon-main": "3518e4e6464b12ee28b422619e762927e5f89ba9",
-    "message-lc/message-lc-icon-supplementary": "9c19ca7ac0fbb0a893d0f84177546abd7aadb3bf"
+    "message-lc/message-lc-icon-supplementary": "9c19ca7ac0fbb0a893d0f84177546abd7aadb3bf",
+    
+    // Accent
+    "accent/accent-fill": "64140342d404cf3eab1abc0fb701baf9fee43f54",
+    "accent/accent-stroke": "14fbe6bd2a0f8f52310d608d5d45199e5c70e9af",
+    "accent/accent-text-main": "4faa21d290887c0ee7961176e151822ebbee3088",
+    "accent/accent-text-supplementary": "6e34fc148542210eaf936b9c91d155439ff7efe8",
+    "accent/accent-icon-main": "f21c602ccec7e75d2a5d138c7de820acd9c742dc",
+    "accent/accent-icon-supplementary": "24eedc3a938b3de6267bfd5f7d9ca3f6b9191f78"
 };
 
 // =============================================
@@ -688,15 +696,31 @@ function isIconInstance(node) {
         const isSquare = width === height;
         const isIconSize = iconSizes.includes(width);
         
-        if (isSquare && isIconSize) {
+        if (!isSquare || !isIconSize) {
+            return false;
+        }
+        
+        // Критерий 2: простая структура — не более 2 прямых детей
+        if ('children' in node) {
+            if (node.children.length > 2) {
+                return false;
+            }
+        }
+        
+        // Критерий 3: внутри есть слой с именем Icon или vector/frame
+        const hasIconLayer = checkForIconLayer(node);
+        if (hasIconLayer) {
             return true;
         }
         
-        // Критерий 2: есть пропс Size
+        // Критерий 4: есть пропс Size (точное совпадение)
         const props = node.componentProperties;
         if (props) {
-            const propNames = Object.keys(props).map(p => p.toLowerCase());
-            const hasSize = propNames.some(p => p.includes('size'));
+            const propNames = Object.keys(props);
+            const hasSize = propNames.some(p => {
+                const lower = p.toLowerCase();
+                return lower === 'size' || lower.startsWith('size#');
+            });
             if (hasSize) {
                 return true;
             }
@@ -706,6 +730,22 @@ function isIconInstance(node) {
     } catch (e) {
         return false;
     }
+}
+
+// Проверяет есть ли внутри слой похожий на иконку
+function checkForIconLayer(node) {
+    if (!('children' in node)) return false;
+    
+    for (const child of node.children) {
+        const name = (child.name || '').toLowerCase();
+        if (name === 'icon' || name === 'icons' || name.includes('vector')) {
+            return true;
+        }
+        if (child.type === 'VECTOR' || child.type === 'BOOLEAN_OPERATION') {
+            return true;
+        }
+    }
+    return false;
 }
 
 // =============================================
@@ -841,11 +881,6 @@ async function applyColorsRecursively(node, colorVars) {
         if (colorVar) {
             applyFillVariable(node, colorVar);
         }
-    }
-    
-    // Stroke - если у элемента уже есть обводка, применяем токен stroke
-    if (colorVars.stroke && node.strokes && Array.isArray(node.strokes) && node.strokes.length > 0) {
-        applyStrokeVariable(node, colorVars.stroke);
     }
     
     // Рекурсия для детей
