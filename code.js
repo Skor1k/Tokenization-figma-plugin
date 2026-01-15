@@ -867,6 +867,11 @@ async function applyColorsRecursively(node, colorVars) {
         }
         
         const iconType = getIconType(node);
+        // Пропускаем цветные иконки (iconType === null)
+        if (iconType === null) {
+            return;
+        }
+        
         const colorVar = iconType === 'main' ? colorVars['icon-main'] : colorVars['icon-supplementary'];
         if (colorVar) {
             applyColorToIcon(node, colorVar);
@@ -940,22 +945,26 @@ function getTextType(textNode) {
     return 'main';
 }
 
-// Определяем тип иконки (main или supplementary) по переменной, стилю или RGB
+// Определяем тип иконки (main или supplementary) по стилю
+// Возвращает null для цветных иконок (которые не нужно перекрашивать)
 function getIconType(iconNode) {
     try {
         // Ищем заливку внутри иконки
         const fillInfo = getIconFillInfo(iconNode);
-        if (!fillInfo) return 'main';
+        if (!fillInfo) return null;
         
         // Приоритет 1: проверка по привязанной переменной (токену)
         if (fillInfo.boundVariableName) {
             const varName = fillInfo.boundVariableName.toLowerCase();
-            if (varName.includes('supplementary')) {
-                return 'supplementary';
-            }
-            if (varName.includes('main')) {
+            // Только gray токены перекрашиваем
+            if (varName.includes('icon-gray-main')) {
                 return 'main';
             }
+            if (varName.includes('icon-gray-supplementary')) {
+                return 'supplementary';
+            }
+            // Любой другой токен (цветной) - не перекрашиваем
+            return null;
         }
         
         // Приоритет 2: проверка по стилю цвета
@@ -963,34 +972,23 @@ function getIconType(iconNode) {
             const style = figma.getStyleById(fillInfo.styleId);
             if (style && style.name) {
                 const styleName = style.name.toLowerCase();
+                // Только icon-gray-main и icon-gray-supplementary перекрашиваем
                 if (styleName.includes('icon-gray-main') || styleName.includes('icon/icon-gray-main')) {
                     return 'main';
                 }
                 if (styleName.includes('icon-gray-supplementary') || styleName.includes('icon/icon-gray-supplementary')) {
                     return 'supplementary';
                 }
+                // Любой другой стиль (цветной) - не перекрашиваем
+                return null;
             }
         }
         
-        // Приоритет 3: проверка по RGB
-        if (fillInfo.color) {
-            const r = fillInfo.color.r;
-            const g = fillInfo.color.g;
-            const b = fillInfo.color.b;
-            
-            // Черный (~0,0,0) → main
-            if (r < 0.15 && g < 0.15 && b < 0.15) {
-                return 'main';
-            }
-            
-            // Серый (~0.5, 0.5, 0.5) → supplementary
-            if (r > 0.3 && r < 0.7 && g > 0.3 && g < 0.7 && b > 0.3 && b < 0.7) {
-                return 'supplementary';
-            }
-        }
+        // Нет токена и нет стиля - не перекрашиваем (возможно цветная)
+        return null;
     } catch (e) {}
     
-    return 'main';
+    return null;
 }
 
 // Получить информацию о заливке иконки
