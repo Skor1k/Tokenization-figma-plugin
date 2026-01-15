@@ -12,7 +12,9 @@ const VARIABLE_KEYS = {
     "icon/icon-size": "0cd7619782a7aa4ea0e659c77936762ad4e2b836",
     "icon/🔗icon-container": "fe9e709a5a88f08d134399cf901075638434d7b6",
     "icon/🔗help-gap": "cec71d5b2c12212e27509beffd5887852c69c2cd",
-    "text/body/🔗main-text-gap": "c8134a9184e164c2e1d1f3d482b8eebba65527ee"
+    "text/body/🔗main-text-gap": "c8134a9184e164c2e1d1f3d482b8eebba65527ee",
+    "icon/gray/icon-gray-main": "ee2d29afd2cd03809a602db37fef739582c99a7d",
+    "icon/gray/icon-gray-supplementary": "870efddce3598f7b7a92d1c7a95f62b53c142c88"
 };
 
 // =============================================
@@ -270,6 +272,7 @@ let variablesCache = {};
 let textStylesCache = {};
 let colorVariablesCache = {};
 let variableIdToName = {}; // Маппинг id переменной → имя (для работы с dynamic-page)
+let styleIdToName = {}; // Маппинг id стиля → имя (для работы с dynamic-page)
 let cacheLoaded = false;
 
 // Предзагрузка всех переменных и стилей
@@ -291,7 +294,10 @@ async function preloadCache() {
     const stylePromises = Object.entries(TEXT_STYLE_KEYS).map(async ([name, key]) => {
         try {
             const style = await figma.importStyleByKeyAsync(key);
-            if (style) textStylesCache[name] = style;
+            if (style) {
+                textStylesCache[name] = style;
+                styleIdToName[style.id] = style.name;
+            }
         } catch (e) {}
     });
     
@@ -933,15 +939,16 @@ function getTextType(textNode) {
     try {
         const styleId = textNode.textStyleId;
         if (styleId && typeof styleId === 'string') {
-            const style = figma.getStyleById(styleId);
-            if (style && style.name) {
-                const styleName = style.name.toLowerCase();
+            // Используем кэш для dynamic-page совместимости
+            const styleName = styleIdToName[styleId];
+            if (styleName) {
+                const styleNameLower = styleName.toLowerCase();
                 // main-normal, main-header → main
-                if (styleName.includes('main')) {
+                if (styleNameLower.includes('main')) {
                     return 'main';
                 }
                 // body, caption → supplementary
-                if (styleName.includes('body') || styleName.includes('caption')) {
+                if (styleNameLower.includes('body') || styleNameLower.includes('caption')) {
                     return 'supplementary';
                 }
             }
@@ -967,13 +974,13 @@ function getIconType(iconNode) {
             return null; // нет -main/-supplementary — не перекрашиваем
         }
         
-        // Проверка по стилю
+        // Проверка по стилю (используем кэш для dynamic-page совместимости)
         if (fillInfo.styleId) {
-            const style = figma.getStyleById(fillInfo.styleId);
-            if (style && style.name) {
-                const styleName = style.name.toLowerCase();
-                if (styleName.includes('-main')) return 'main';
-                if (styleName.includes('-supplementary')) return 'supplementary';
+            const styleName = styleIdToName[fillInfo.styleId];
+            if (styleName) {
+                const styleNameLower = styleName.toLowerCase();
+                if (styleNameLower.includes('-main')) return 'main';
+                if (styleNameLower.includes('-supplementary')) return 'supplementary';
                 return null;
             }
         }
